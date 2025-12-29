@@ -54,7 +54,12 @@ export default function Home() {
     const oxSet = new Set(["〇", "○", "✕", "×", "❌", "⭕"]);
     const allOx = tokens.length > 0 && tokens.every((t) => oxSet.has(t));
     if (allOx) return "ox";
-    if (tokens.length > 1) return "multi";
+
+    // 「すべて選びなさい」「正しいものをすべて」などを検出
+    const questionText = entry.statement + entry.questionBody;
+    const isMultiSelect = /すべて選び|全て選び|すべて選んで|複数選/.test(questionText);
+
+    if (tokens.length > 1 || isMultiSelect) return "multi";
     if (tokens.length === 1 && /^\d+$/.test(tokens[0])) return "choice";
     return "choice";
   };
@@ -194,8 +199,10 @@ export default function Home() {
     setChoice((prev) => {
       let next: string[] = [];
       if (questionType === "ox" || questionType === "choice") {
+        // 単一選択
         next = [opt];
       } else {
+        // 複数選択（multi）：トグル動作
         next = prev.includes(opt)
           ? prev.filter((o) => o !== opt)
           : [...prev, opt];
@@ -207,16 +214,30 @@ export default function Home() {
   };
 
   const evaluate = (entry: SpreadEntry, selected: string[]) => {
-    const ansList = entry.answer
-      .split(/[,\s]/)
-      .map((a) => a.trim())
-      .filter(Boolean);
+    // answerTokensを使用（パーサーで正規化済み）
+    const ansList = entry.answerTokens.length > 0
+      ? entry.answerTokens
+      : entry.answer.split(/[,\s、]+/).map((a) => a.trim()).filter(Boolean);
+
     if (!ansList.length) return false;
+
+    // 〇×の正規化
+    const normalizeOx = (s: string) => {
+      if (["〇", "○", "⭕"].includes(s)) return "〇";
+      if (["✕", "×", "❌"].includes(s)) return "✕";
+      return s;
+    };
+
+    const normalizedSel = selected.map(normalizeOx);
+    const normalizedAns = ansList.map(normalizeOx);
+
     if (questionType === "ox" || questionType === "choice") {
-      return selected.length === 1 && selected[0] === ansList[0];
+      return normalizedSel.length === 1 && normalizedSel[0] === normalizedAns[0];
     }
-    const sortedSel = [...selected].sort();
-    const sortedAns = [...ansList].sort();
+
+    // 複数選択の場合：順番は関係なく、すべて一致するか確認
+    const sortedSel = [...normalizedSel].sort();
+    const sortedAns = [...normalizedAns].sort();
     return (
       sortedSel.length === sortedAns.length &&
       sortedSel.every((v, i) => v === sortedAns[i])
@@ -473,8 +494,15 @@ export default function Home() {
                     )}
                     <div className="mt-4 space-y-2">
                       <p className="text-xs font-semibold text-gray-500">
-                        回答を選択（左側で回答します）
+                        {questionType === "multi"
+                          ? "複数選択可：当てはまるものをすべて選んでください"
+                          : "回答を選択（左側で回答します）"}
                       </p>
+                      {questionType === "multi" && (
+                        <p className="text-xs font-bold text-indigo-600">
+                          選択中: {choice.length > 0 ? choice.join(", ") : "なし"}
+                        </p>
+                      )}
                       <div className="grid gap-3 sm:grid-cols-1">
                         {uniqueOptions.map((opt) => {
                           const isSelected = choice.includes(opt.id);
