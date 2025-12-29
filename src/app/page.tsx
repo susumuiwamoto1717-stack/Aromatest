@@ -1,65 +1,333 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { parseSpreadMarkdown, SpreadEntry } from "@/lib/parseSpread";
+
+const accent =
+  "bg-gradient-to-r from-indigo-500 via-indigo-400 to-indigo-500 text-white";
 
 export default function Home() {
+  const [entries, setEntries] = useState<SpreadEntry[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedChapter, setSelectedChapter] = useState<string>("すべて");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showAnswer, setShowAnswer] = useState(false);
+  const [choice, setChoice] = useState<"〇" | "✕" | null>(null);
+
+  const chapters = useMemo(() => {
+    const uniq = Array.from(
+      new Set(entries.map((e) => e.chapter || "未分類")),
+    );
+    return ["すべて", ...uniq];
+  }, [entries]);
+
+  const filteredEntries = useMemo(() => {
+    if (selectedChapter === "すべて") return entries;
+    return entries.filter((e) => e.chapter === selectedChapter);
+  }, [entries, selectedChapter]);
+
+  const currentEntry = filteredEntries[currentIndex];
+  const questionType = useMemo(() => {
+    const ans = currentEntry?.answer ?? "";
+    return /[〇○×✕❌⭕]/.test(ans) ? "ox" : "choice";
+  }, [currentEntry]);
+  const options = questionType === "ox" ? ["〇", "✕"] : ["1", "2", "3", "4"];
+  const progress = useMemo(() => {
+    if (!filteredEntries.length) return 0;
+    return Math.round(((currentIndex + 1) / filteredEntries.length) * 100);
+  }, [currentIndex, filteredEntries.length]);
+
+  useEffect(() => {
+    const loadDefault = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch("/spread_all.md");
+        if (!res.ok) {
+          throw new Error("spread_all.md を読み込めませんでした");
+        }
+        const text = await res.text();
+        await loadFromText(text, "spread_all.md");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "読み込みに失敗しました");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDefault();
+  }, []);
+
+  const loadFromText = async (text: string) => {
+    const parsed = parseSpreadMarkdown(text);
+    if (!parsed.length) {
+      throw new Error("抽出できる問題がありませんでした。フォーマットを確認してください。");
+    }
+    setEntries(parsed);
+    setCurrentIndex(0);
+    setShowAnswer(false);
+    setChoice(null);
+  };
+
+  const goPrevious = () => {
+    setCurrentIndex((prev) => Math.max(prev - 1, 0));
+    setShowAnswer(false);
+    setChoice(null);
+  };
+
+  const goNext = () => {
+    setCurrentIndex((prev) =>
+      Math.min(prev + 1, Math.max(filteredEntries.length - 1, 0)),
+    );
+    setShowAnswer(false);
+    setChoice(null);
+  };
+
+  const shuffleEntries = () => {
+    if (!filteredEntries.length) return;
+    const source = [...filteredEntries];
+    const shuffled = [...source];
+    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    const others = entries.filter((e) => !source.includes(e));
+    setEntries([...shuffled, ...others]);
+    setCurrentIndex(0);
+    setShowAnswer(false);
+    setChoice(null);
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="min-h-screen p-4 sm:p-8">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+        <header className="rounded-3xl bg-white/90 p-6 shadow-xl shadow-indigo-100 backdrop-blur">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="yomogi text-xl text-indigo-600">Aroma Trainer</p>
+              <h1 className="yomogi text-3xl font-bold text-indigo-700 sm:text-4xl">
+                アロマインスト&セラ 共通対策
+              </h1>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="text-xs font-semibold text-gray-600">
+                章を選択
+              </label>
+              <select
+                className="rounded-full border border-indigo-200 bg-white px-3 py-2 text-sm text-indigo-700 shadow-sm"
+                value={selectedChapter}
+                onChange={(e) => {
+                  setSelectedChapter(e.target.value);
+                  setCurrentIndex(0);
+                  setShowAnswer(false);
+                  setChoice(null);
+                }}
+              >
+                {chapters.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <p className="mt-4 text-sm text-gray-600">
+            章ごとに問題を選び、左で問題、右で回答と解説を確認できます。スマホは「回答を見る」ボタンで開閉。
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-800">
+              全 {filteredEntries.length || "-"} 問
+            </div>
+            <div className="rounded-xl bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-800">
+              現在{" "}
+              {filteredEntries.length ? currentIndex + 1 : "-"} /{" "}
+              {filteredEntries.length || "-"}
+            </div>
+            <div className="rounded-xl bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-800">
+              進捗 {progress}%
+            </div>
+          </div>
+        </header>
+
+        <section className="rounded-3xl bg-white/90 p-6 shadow-xl shadow-indigo-100 backdrop-blur">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={shuffleEntries}
+                className="rounded-full border border-indigo-100 bg-white px-5 py-3 text-sm font-semibold text-indigo-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
+              >
+                並び順をシャッフル
+              </button>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="rounded-full border border-gray-200 bg-gray-50 px-5 py-3 text-sm font-semibold text-gray-600 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
+              >
+                画面をリセット
+              </button>
+            </div>
+          </div>
+          {/* upload status removed */}
+        </section>
+
+        <section className="rounded-3xl bg-white p-6 shadow-2xl shadow-indigo-100">
+          {loading && (
+            <div className="flex min-h-[320px] items-center justify-center text-indigo-700">
+              読み込み中です…
+            </div>
+          )}
+          {!loading && error && (
+            <div className="rounded-xl border border-rose-100 bg-rose-50 p-4 text-rose-700">
+              {error}
+            </div>
+          )}
+          {!loading && !error && !currentEntry && (
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 text-gray-600">
+              表示できる問題がありません。ファイルを確認してください。
+            </div>
+          )}
+          {!loading && !error && currentEntry && (
+            <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="rounded-full bg-indigo-100 px-4 py-2 text-xs font-bold text-indigo-700">
+                      {currentEntry.id}
+                    </span>
+                    {currentEntry.source && (
+                      <span className="rounded-full bg-gray-100 px-3 py-2 text-[11px] font-semibold text-gray-600">
+                        {currentEntry.source}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs font-semibold text-gray-500">
+                    {currentIndex + 1} / {filteredEntries.length}
+                  </span>
+                </div>
+
+                <div className="w-full rounded-full bg-indigo-100">
+                  <div
+                    className="h-2 rounded-full bg-indigo-500 transition-all"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <div className="rounded-2xl bg-indigo-50/80 p-5 shadow-inner">
+                    <p className="yomogi text-lg font-bold text-indigo-700">
+                      問題
+                    </p>
+                    <p className="mt-2 text-lg font-semibold leading-relaxed text-gray-900">
+                      {currentEntry.statement}
+                    </p>
+                    <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-gray-600">
+                      {currentEntry.questionBody}
+                    </p>
+                    <div className="mt-4 space-y-2">
+                      <p className="text-xs font-semibold text-gray-500">
+                        回答を選択（左側で回答します）
+                      </p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {options.map((opt) => {
+                          const isSelected = choice === opt;
+                          const baseStyle =
+                            "w-full rounded-xl border-2 px-4 py-3 text-base font-bold shadow-sm transition";
+                          const selectedStyle = isSelected
+                            ? "border-indigo-400 bg-indigo-50 text-indigo-800"
+                            : "border-indigo-100 bg-white text-indigo-700 hover:-translate-y-0.5 hover:shadow";
+                          return (
+                            <button
+                              key={opt}
+                              type="button"
+                              className={`${baseStyle} ${selectedStyle}`}
+                              onClick={() => {
+                                setChoice(opt as "〇" | "✕");
+                                setShowAnswer(true);
+                              }}
+                            >
+                              {questionType === "choice" ? `${opt} を選ぶ` : `${opt} を選ぶ`}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-indigo-100 bg-white p-5 shadow-md">
+                    <div className="flex items-center justify-between">
+                      <p className="yomogi text-lg font-bold text-indigo-700">
+                        解説
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowAnswer((prev) => !prev)}
+                        className="rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-semibold text-indigo-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+                      >
+                        {showAnswer ? "隠す" : "回答を見る"}
+                      </button>
+                    </div>
+                    {showAnswer ? (
+                      <div className="mt-4 space-y-4">
+                        {choice && (
+                          <div
+                            className={`rounded-xl border px-4 py-3 text-sm font-semibold ${currentEntry.answer.includes(choice) ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}
+                          >
+                            {currentEntry.answer.includes(choice)
+                              ? "正解です"
+                              : `不正解です。正解は ${currentEntry.answer}`}
+                          </div>
+                        )}
+                        {!choice && (
+                          <div className="rounded-xl border border-dashed border-indigo-200 bg-indigo-50/60 px-4 py-3 text-sm text-indigo-700">
+                            左側で回答を選ぶとここに結果と解説が表示されます。
+                          </div>
+                        )}
+
+                        <div className="inline-flex rounded-full bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700">
+                          正解: {currentEntry.answer || "？"}
+                        </div>
+                        <p className="whitespace-pre-wrap text-base leading-relaxed text-gray-800">
+                          {currentEntry.explanation}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-4 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/60 px-4 py-6 text-center text-sm text-indigo-700">
+                        「回答を見る」を押すと、答えと解説がここに表示されます。
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={goPrevious}
+                    disabled={currentIndex === 0}
+                    className={`rounded-full px-5 py-3 text-sm font-semibold shadow-md transition ${currentIndex === 0 ? "bg-gray-200 text-gray-500" : "bg-white text-indigo-700 hover:-translate-y-0.5 hover:shadow-lg border border-indigo-100"}`}
+                  >
+                    前へ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={goNext}
+                    disabled={currentIndex === filteredEntries.length - 1}
+                    className={`rounded-full px-6 py-3 text-sm font-semibold shadow-md transition ${currentIndex === filteredEntries.length - 1 ? "bg-gray-200 text-gray-500" : `${accent} hover:shadow-indigo-300 hover:-translate-y-0.5`}`}
+                  >
+                    次へ
+                  </button>
+                </div>
+                <div className="text-xs text-gray-500">
+                  左側が問題、右側が回答・解説。スマホは回答ボタンで開閉できます。
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
