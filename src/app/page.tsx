@@ -219,20 +219,25 @@ export default function Home() {
       }
       const all = JSON.parse(raw) as Record<string, unknown>;
       const data = all[userKey] as {
-        entries?: SpreadEntry[];
-        currentIndex?: number;
+        currentId?: string;
         history?: { id: string; isCorrect: boolean; selected: string[] }[];
         selectedChapter?: string;
+        onlyIncorrect?: boolean;
       };
       if (!data) {
         setSavedNotice("保存データが見つかりません");
         return;
       }
-      if (data.entries?.length) setEntries(data.entries);
-      if (typeof data.currentIndex === "number")
-        setCurrentIndex(data.currentIndex);
       if (data.history) setHistory(data.history);
       if (data.selectedChapter) setSelectedChapter(data.selectedChapter);
+      if (typeof data.onlyIncorrect === "boolean")
+        setOnlyIncorrect(data.onlyIncorrect);
+      if (data.currentId && filteredEntries.length > 0) {
+        const idx = filteredEntries.findIndex((e) => e.id === data.currentId);
+        if (idx >= 0) setCurrentIndex(idx);
+      } else {
+        setCurrentIndex(0);
+      }
       setShowAnswer(false);
       setChoice([]);
       setSavedNotice("保存データを読み込みました");
@@ -248,10 +253,11 @@ export default function Home() {
       return;
     }
     const payload = {
-      entries,
-      currentIndex,
+      currentId: currentEntry?.id,
       history,
       selectedChapter,
+      onlyIncorrect,
+      savedAt: new Date().toISOString(),
     };
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
