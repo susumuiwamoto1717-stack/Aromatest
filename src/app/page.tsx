@@ -63,34 +63,46 @@ export default function Home() {
     [currentEntry],
   );
 
-  const numericOptionsFromBody = useMemo(() => {
-    if (!currentEntry) return [] as string[];
-    return currentEntry.questionBody
+  const options = useMemo(() => {
+    if (!currentEntry) return [] as { id: string; label: string }[];
+    if (questionType === "ox")
+      return [
+        { id: "〇", label: "〇" },
+        { id: "✕", label: "✕" },
+      ];
+
+    const lines = currentEntry.questionBody
       .split("\n")
       .map((line) => line.trim())
-      .filter((line) => /^\d+/.test(line))
-      .map((line) => line.match(/^(\d+)/)?.[1] || "")
       .filter(Boolean);
-  }, [currentEntry]);
 
-  const options = useMemo(() => {
-    if (!currentEntry) return ["1", "2", "3", "4"];
-    if (questionType === "ox") return ["〇", "✕"];
+    const numbered = lines
+      .map((line) => {
+        const match = line.match(/^(\d+)[\.\s、)]\s*(.+)$/);
+        if (!match) return null;
+        return { id: match[1], label: match[2].trim() };
+      })
+      .filter(Boolean) as { id: string; label: string }[];
+
+    if (numbered.length > 0) return numbered;
+
+    // fallback: numeric ids from answers
     if (
       currentEntry.answerTokens.length > 0 &&
       currentEntry.answerTokens.every((t) => /^\d+$/.test(t))
     ) {
-      if (numericOptionsFromBody.length > 0) {
-        return Array.from(new Set(numericOptionsFromBody));
-      }
       const max = Math.max(
         4,
         ...currentEntry.answerTokens.map((t) => parseInt(t, 10)),
       );
-      return Array.from({ length: max }, (_, i) => String(i + 1));
+      return Array.from({ length: max }, (_, i) => {
+        const id = String(i + 1);
+        return { id, label: id };
+      });
     }
-    return ["1", "2", "3", "4"];
-  }, [currentEntry, numericOptionsFromBody, questionType]);
+
+    return [];
+  }, [currentEntry, questionType]);
   const progress = useMemo(() => {
     if (!filteredEntries.length) return 0;
     return Math.round(((currentIndex + 1) / filteredEntries.length) * 100);
@@ -439,22 +451,23 @@ export default function Home() {
                       </p>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {options.map((opt) => {
-                          const isSelected = choice.includes(opt);
+                          const isSelected = choice.includes(opt.id);
                           const baseStyle =
-                            "w-full rounded-xl border-2 px-4 py-3 text-base font-bold shadow-sm transition";
+                            "w-full rounded-xl border-2 px-4 py-3 text-base font-semibold shadow-sm transition text-left";
                           const selectedStyle = isSelected
-                            ? "border-indigo-400 bg-indigo-50 text-indigo-800"
+                            ? "border-indigo-500 bg-indigo-50 text-indigo-900"
                             : "border-indigo-100 bg-white text-indigo-700 hover:-translate-y-0.5 hover:shadow";
                           return (
                             <button
-                              key={opt}
+                              key={opt.id}
                               type="button"
                               className={`${baseStyle} ${selectedStyle}`}
-                              onClick={() => toggleSelect(opt)}
+                              onClick={() => toggleSelect(opt.id)}
                             >
-                              {questionType === "multi"
-                                ? `${opt} を選択/解除`
-                                : `${opt} を選ぶ`}
+                              <span className="mr-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-indigo-200 bg-white text-sm font-bold">
+                                {opt.id}
+                              </span>
+                              <span className="align-middle">{opt.label}</span>
                             </button>
                           );
                         })}
@@ -483,7 +496,7 @@ export default function Home() {
                           >
                             {evaluate(currentEntry, choice)
                               ? "正解です"
-                              : `不正解です。正解は ${currentEntry.answer}`}
+                              : `不正解です。正解は ${currentEntry.answerTokens.join(" / ") || currentEntry.answer}`}
                           </div>
                         )}
                         {choice.length === 0 && (
