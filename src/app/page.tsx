@@ -97,7 +97,12 @@ export default function Home() {
 
     const context = lines.filter((line) => !/^\d+[\.\s、)]/.test(line));
 
-    if (numbered.length > 0) return { options: numbered, contextLines: context };
+    // statementと重複する行を除外
+    const filteredContext = context.filter(
+      (line) => !currentEntry.statement.includes(line) && line !== "選択肢"
+    );
+
+    if (numbered.length > 0) return { options: numbered, contextLines: filteredContext };
 
     // fallback: numeric ids from answers
     if (
@@ -112,10 +117,10 @@ export default function Home() {
         const id = String(i + 1);
         return { id, label: id };
       });
-      return { options: optList, contextLines: context };
+      return { options: optList, contextLines: filteredContext };
     }
 
-    return { options: [], contextLines: lines };
+    return { options: [], contextLines: filteredContext };
   }, [currentEntry, questionType]);
 
   // ユニーク化（稀に同じ文字が重複するケース対策）
@@ -577,11 +582,13 @@ export default function Home() {
                           </div>
                         )}
 
-                        <div className="inline-flex rounded-full bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700">
-                          正解: {currentEntry.answer || "？"}{" "}
-                          {questionType === "multi" ? "(複数選択可)" : ""}
-                        </div>
-                        <p className="whitespace-pre-wrap text-base leading-relaxed text-gray-800">
+                        <p className={`whitespace-pre-wrap text-base leading-relaxed font-medium ${
+                          submittedChoice.length > 0 && evaluate(currentEntry, submittedChoice)
+                            ? "text-blue-700"
+                            : submittedChoice.length > 0
+                              ? "text-rose-700"
+                              : "text-gray-800"
+                        }`}>
                           {currentEntry.explanation}
                         </p>
                       </div>
