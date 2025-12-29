@@ -13,7 +13,10 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
-  const [choice, setChoice] = useState<"〇" | "✕" | null>(null);
+  const [choice, setChoice] = useState<string[]>([]);
+  const [onlyIncorrect, setOnlyIncorrect] = useState(false);
+  const [email, setEmail] = useState("");
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
 
   const chapters = useMemo(() => {
     const uniq = Array.from(
@@ -22,17 +25,39 @@ export default function Home() {
     return ["すべて", ...uniq];
   }, [entries]);
 
+  const [history, setHistory] = useState<
+    { id: string; isCorrect: boolean; selected: string[] }[]
+  >([]);
+
+  const incorrectIds = useMemo(
+    () => history.filter((h) => !h.isCorrect).map((h) => h.id),
+    [history],
+  );
+
   const filteredEntries = useMemo(() => {
-    if (selectedChapter === "すべて") return entries;
-    return entries.filter((e) => e.chapter === selectedChapter);
-  }, [entries, selectedChapter]);
+    let list =
+      selectedChapter === "すべて"
+        ? entries
+        : entries.filter((e) => e.chapter === selectedChapter);
+    if (onlyIncorrect) {
+      list = list.filter((e) => incorrectIds.includes(e.id));
+    }
+    return list;
+  }, [entries, incorrectIds, onlyIncorrect, selectedChapter]);
 
   const currentEntry = filteredEntries[currentIndex];
   const questionType = useMemo(() => {
     const ans = currentEntry?.answer ?? "";
-    return /[〇○×✕❌⭕]/.test(ans) ? "ox" : "choice";
+    if (/[〇○×✕❌⭕]/.test(ans)) return "ox";
+    if (ans.split(/[,\s]/).filter(Boolean).length > 1) return "multi";
+    return "choice";
   }, [currentEntry]);
-  const options = questionType === "ox" ? ["〇", "✕"] : ["1", "2", "3", "4"];
+
+  const options = useMemo(() => {
+    if (questionType === "ox") return ["〇", "✕"];
+    // デフォルト4択（数字）
+    return ["1", "2", "3", "4"];
+  }, [questionType]);
   const progress = useMemo(() => {
     if (!filteredEntries.length) return 0;
     return Math.round(((currentIndex + 1) / filteredEntries.length) * 100);
@@ -48,7 +73,7 @@ export default function Home() {
           throw new Error("spread_all.md を読み込めませんでした");
         }
         const text = await res.text();
-        await loadFromText(text, "spread_all.md");
+        await loadFromText(text);
       } catch (e) {
         setError(e instanceof Error ? e.message : "読み込みに失敗しました");
       } finally {
@@ -67,13 +92,14 @@ export default function Home() {
     setEntries(parsed);
     setCurrentIndex(0);
     setShowAnswer(false);
-    setChoice(null);
+    setChoice([]);
+    setHistory([]);
   };
 
   const goPrevious = () => {
     setCurrentIndex((prev) => Math.max(prev - 1, 0));
     setShowAnswer(false);
-    setChoice(null);
+    setChoice([]);
   };
 
   const goNext = () => {
@@ -81,7 +107,7 @@ export default function Home() {
       Math.min(prev + 1, Math.max(filteredEntries.length - 1, 0)),
     );
     setShowAnswer(false);
-    setChoice(null);
+    setChoice([]);
   };
 
   const shuffleEntries = () => {
@@ -96,7 +122,100 @@ export default function Home() {
     setEntries([...shuffled, ...others]);
     setCurrentIndex(0);
     setShowAnswer(false);
-    setChoice(null);
+    setChoice([]);
+    setHistory([]);
+  };
+
+  const toggleSelect = (opt: string) => {
+    setChoice((prev) => {
+      let next: string[] = [];
+      if (questionType === "ox" || questionType === "choice") {
+        next = [opt];
+      } else {
+        next = prev.includes(opt)
+          ? prev.filter((o) => o !== opt)
+          : [...prev, opt];
+      }
+      if (currentEntry) {
+        saveHistory(currentEntry, next);
+      }
+      setShowAnswer(true);
+      return next;
+    });
+  };
+
+  const evaluate = (entry: SpreadEntry, selected: string[]) => {
+    const ansList = entry.answer
+      .split(/[,\s]/)
+      .map((a) => a.trim())
+      .filter(Boolean);
+    if (!ansList.length) return false;
+    if (questionType === "ox" || questionType === "choice") {
+      return selected.length === 1 && selected[0] === ansList[0];
+    }
+    const sortedSel = [...selected].sort();
+    const sortedAns = [...ansList].sort();
+    return (
+      sortedSel.length === sortedAns.length &&
+      sortedSel.every((v, i) => v === sortedAns[i])
+    );
+  };
+
+  const saveHistory = (entry: SpreadEntry, selected: string[]) => {
+    const isCorrect = evaluate(entry, selected);
+    setHistory((prev) => {
+      const others = prev.filter((h) => h.id !== entry.id);
+      return [...others, { id: entry.id, isCorrect, selected }];
+    });
+    return isCorrect;
+  };
+
+  // ローカル保存（メール風のキーで localStorage に保存）
+  const STORAGE_KEY = "aroma-trainer-progress";
+
+  useEffect(() => {
+    if (!email) return;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const all = JSON.parse(raw) as Record<string, unknown>;
+      const data = all[email] as {
+        entries?: SpreadEntry[];
+        currentIndex?: number;
+        history?: { id: string; isCorrect: boolean; selected: string[] }[];
+        selectedChapter?: string;
+      };
+      if (data?.entries?.length) setEntries(data.entries);
+      if (typeof data?.currentIndex === "number")
+        setCurrentIndex(data.currentIndex);
+      if (data?.history) setHistory(data.history);
+      if (data?.selectedChapter) setSelectedChapter(data.selectedChapter);
+      setSavedNotice("保存データを読み込みました");
+    } catch (e) {
+      console.error(e);
+    }
+  }, [email]);
+
+  const saveProgress = () => {
+    if (!email) {
+      setSavedNotice("メール（任意）を入れてください");
+      return;
+    }
+    const payload = {
+      entries,
+      currentIndex,
+      history,
+      selectedChapter,
+    };
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const all = raw ? JSON.parse(raw) : {};
+      all[email] = payload;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+      setSavedNotice("保存しました（この端末のみ）");
+    } catch {
+      setSavedNotice("保存に失敗しました");
+    }
   };
 
   return (
@@ -121,7 +240,7 @@ export default function Home() {
                   setSelectedChapter(e.target.value);
                   setCurrentIndex(0);
                   setShowAnswer(false);
-                  setChoice(null);
+                  setChoice([]);
                 }}
               >
                 {chapters.map((c) => (
@@ -131,10 +250,28 @@ export default function Home() {
                 ))}
               </select>
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="メール（保存キーとして使用）"
+                className="w-56 rounded-full border border-indigo-200 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={saveProgress}
+                className="rounded-full border border-indigo-100 bg-white px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+              >
+                進捗を保存
+              </button>
+            </div>
           </div>
           <p className="mt-4 text-sm text-gray-600">
             章ごとに問題を選び、左で問題、右で回答と解説を確認できます。スマホは「回答を見る」ボタンで開閉。
           </p>
+          {savedNotice && (
+            <p className="mt-2 text-xs text-emerald-700">{savedNotice}</p>
+          )}
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-800">
               全 {filteredEntries.length || "-"} 問
@@ -168,6 +305,18 @@ export default function Home() {
                 画面をリセット
               </button>
             </div>
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={onlyIncorrect}
+                onChange={(e) => {
+                  setOnlyIncorrect(e.target.checked);
+                  setCurrentIndex(0);
+                }}
+                className="h-4 w-4 accent-indigo-600"
+              />
+              間違った問題だけを解き直す
+            </label>
           </div>
           {/* upload status removed */}
         </section>
@@ -231,7 +380,7 @@ export default function Home() {
                       </p>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {options.map((opt) => {
-                          const isSelected = choice === opt;
+                          const isSelected = choice.includes(opt);
                           const baseStyle =
                             "w-full rounded-xl border-2 px-4 py-3 text-base font-bold shadow-sm transition";
                           const selectedStyle = isSelected
@@ -242,12 +391,11 @@ export default function Home() {
                               key={opt}
                               type="button"
                               className={`${baseStyle} ${selectedStyle}`}
-                              onClick={() => {
-                                setChoice(opt as "〇" | "✕");
-                                setShowAnswer(true);
-                              }}
+                              onClick={() => toggleSelect(opt)}
                             >
-                              {questionType === "choice" ? `${opt} を選ぶ` : `${opt} を選ぶ`}
+                              {questionType === "multi"
+                                ? `${opt} を選択/解除`
+                                : `${opt} を選ぶ`}
                             </button>
                           );
                         })}
@@ -270,23 +418,24 @@ export default function Home() {
                     </div>
                     {showAnswer ? (
                       <div className="mt-4 space-y-4">
-                        {choice && (
+                        {choice.length > 0 && (
                           <div
-                            className={`rounded-xl border px-4 py-3 text-sm font-semibold ${currentEntry.answer.includes(choice) ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}
+                            className={`rounded-xl border px-4 py-3 text-sm font-semibold ${evaluate(currentEntry, choice) ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}
                           >
-                            {currentEntry.answer.includes(choice)
+                            {evaluate(currentEntry, choice)
                               ? "正解です"
                               : `不正解です。正解は ${currentEntry.answer}`}
                           </div>
                         )}
-                        {!choice && (
+                        {choice.length === 0 && (
                           <div className="rounded-xl border border-dashed border-indigo-200 bg-indigo-50/60 px-4 py-3 text-sm text-indigo-700">
                             左側で回答を選ぶとここに結果と解説が表示されます。
                           </div>
                         )}
 
                         <div className="inline-flex rounded-full bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700">
-                          正解: {currentEntry.answer || "？"}
+                          正解: {currentEntry.answer || "？"}{" "}
+                          {questionType === "multi" ? "(複数選択可)" : ""}
                         </div>
                         <p className="whitespace-pre-wrap text-base leading-relaxed text-gray-800">
                           {currentEntry.explanation}

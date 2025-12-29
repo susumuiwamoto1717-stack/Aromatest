@@ -36,8 +36,8 @@ function extractStatement(left: string) {
 }
 
 function extractAnswer(left: string) {
-  const match = left.match(/答え：\s*([〇○×✕❌⭕])/);
-  return match ? match[1] : "";
+  const match = left.match(/答え：\s*([0-9〇○×✕❌⭕、,\s]+)/);
+  return match ? match[1].trim() : "";
 }
 
 function stripAnswerLine(text: string) {
