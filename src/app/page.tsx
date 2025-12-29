@@ -103,6 +103,16 @@ export default function Home() {
 
     return [];
   }, [currentEntry, questionType]);
+
+  // ユニーク化（稀に同じ文字が重複するケース対策）
+  const uniqueOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return options.filter((opt) => {
+      if (seen.has(opt.id)) return false;
+      seen.add(opt.id);
+      return true;
+    });
+  }, [options]);
   const progress = useMemo(() => {
     if (!filteredEntries.length) return 0;
     return Math.round(((currentIndex + 1) / filteredEntries.length) * 100);
@@ -442,15 +452,17 @@ export default function Home() {
                     <p className="mt-2 text-lg font-semibold leading-relaxed text-gray-900">
                       {currentEntry.statement}
                     </p>
-                    <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-gray-600">
-                      {currentEntry.questionBody}
-                    </p>
+                    {currentEntry.questionBody !== currentEntry.statement && (
+                      <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-gray-600">
+                        {currentEntry.questionBody}
+                      </p>
+                    )}
                     <div className="mt-4 space-y-2">
                       <p className="text-xs font-semibold text-gray-500">
                         回答を選択（左側で回答します）
                       </p>
                       <div className="grid gap-2 sm:grid-cols-2">
-                        {options.map((opt) => {
+                        {uniqueOptions.map((opt) => {
                           const isSelected = choice.includes(opt.id);
                           const baseStyle =
                             "w-full rounded-xl border-2 px-4 py-3 text-base font-semibold shadow-sm transition text-left";
