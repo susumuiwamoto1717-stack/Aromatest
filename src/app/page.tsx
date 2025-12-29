@@ -469,6 +469,7 @@ export default function Home() {
                           const selectedStyle = isSelected
                             ? "border-indigo-500 bg-indigo-50 text-indigo-900"
                             : "border-indigo-100 bg-white text-indigo-700 hover:-translate-y-0.5 hover:shadow";
+                          const showLabel = questionType !== "ox";
                           return (
                             <button
                               key={opt.id}
@@ -479,7 +480,9 @@ export default function Home() {
                               <span className="mr-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-indigo-200 bg-white text-sm font-bold">
                                 {opt.id}
                               </span>
-                              <span className="align-middle">{opt.label}</span>
+                              {showLabel && (
+                                <span className="align-middle">{opt.label}</span>
+                              )}
                             </button>
                           );
                         })}
