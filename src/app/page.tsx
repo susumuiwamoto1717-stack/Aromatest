@@ -63,13 +63,18 @@ export default function Home() {
     [currentEntry],
   );
 
-  const options = useMemo(() => {
-    if (!currentEntry) return [] as { id: string; label: string }[];
-    if (questionType === "ox")
-      return [
-        { id: "〇", label: "〇" },
-        { id: "✕", label: "✕" },
-      ];
+  const { options, contextLines } = useMemo(() => {
+    if (!currentEntry)
+      return { options: [] as { id: string; label: string }[], contextLines: [] as string[] };
+    if (questionType === "ox") {
+      return {
+        options: [
+          { id: "〇", label: "〇" },
+          { id: "✕", label: "✕" },
+        ],
+        contextLines: [],
+      };
+    }
 
     const lines = currentEntry.questionBody
       .split("\n")
@@ -84,7 +89,9 @@ export default function Home() {
       })
       .filter(Boolean) as { id: string; label: string }[];
 
-    if (numbered.length > 0) return numbered;
+    const context = lines.filter((line) => !/^\d+[\.\s、)]/.test(line));
+
+    if (numbered.length > 0) return { options: numbered, contextLines: context };
 
     // fallback: numeric ids from answers
     if (
@@ -95,13 +102,14 @@ export default function Home() {
         4,
         ...currentEntry.answerTokens.map((t) => parseInt(t, 10)),
       );
-      return Array.from({ length: max }, (_, i) => {
+      const optList = Array.from({ length: max }, (_, i) => {
         const id = String(i + 1);
         return { id, label: id };
       });
+      return { options: optList, contextLines: context };
     }
 
-    return [];
+    return { options: [], contextLines: lines };
   }, [currentEntry, questionType]);
 
   // ユニーク化（稀に同じ文字が重複するケース対策）
@@ -452,9 +460,9 @@ export default function Home() {
                     <p className="mt-2 text-lg font-semibold leading-relaxed text-gray-900">
                       {currentEntry.statement}
                     </p>
-                    {currentEntry.questionBody !== currentEntry.statement && (
+                    {contextLines.length > 0 && (
                       <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-gray-600">
-                        {currentEntry.questionBody}
+                        {contextLines.join("\n")}
                       </p>
                     )}
                     <div className="mt-4 space-y-2">
