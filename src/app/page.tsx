@@ -17,6 +17,7 @@ export default function Home() {
   const [onlyIncorrect, setOnlyIncorrect] = useState(false);
   const [userKey, setUserKey] = useState("");
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
+  const [submittedChoice, setSubmittedChoice] = useState<string[]>([]);
 
   const chapters = useMemo(() => {
     const uniq = Array.from(
@@ -199,10 +200,8 @@ export default function Home() {
           ? prev.filter((o) => o !== opt)
           : [...prev, opt];
       }
-      if (currentEntry) {
-        saveHistory(currentEntry, next);
-      }
-      setShowAnswer(true);
+      setSubmittedChoice([]);
+      setShowAnswer(false);
       return next;
     });
   };
@@ -222,6 +221,13 @@ export default function Home() {
       sortedSel.length === sortedAns.length &&
       sortedSel.every((v, i) => v === sortedAns[i])
     );
+  };
+
+  const handleSubmit = () => {
+    if (!currentEntry || choice.length === 0) return;
+    saveHistory(currentEntry, choice);
+    setSubmittedChoice(choice);
+    setShowAnswer(true);
   };
 
   const saveHistory = (entry: SpreadEntry, selected: string[]) => {
@@ -469,7 +475,7 @@ export default function Home() {
                       <p className="text-xs font-semibold text-gray-500">
                         回答を選択（左側で回答します）
                       </p>
-                      <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="grid gap-3 sm:grid-cols-1">
                         {uniqueOptions.map((opt) => {
                           const isSelected = choice.includes(opt.id);
                           const baseStyle =
@@ -495,6 +501,21 @@ export default function Home() {
                           );
                         })}
                       </div>
+                      <div className="flex flex-wrap items-center gap-3 pt-2">
+                        <button
+                          type="button"
+                          onClick={handleSubmit}
+                          disabled={choice.length === 0}
+                          className={`rounded-full px-5 py-3 text-sm font-semibold shadow-md transition ${choice.length === 0 ? "bg-gray-200 text-gray-500" : `${accent} hover:shadow-indigo-300 hover:-translate-y-0.5`}`}
+                        >
+                          回答する
+                        </button>
+                        {choice.length === 0 && (
+                          <span className="text-xs text-gray-500">
+                            回答を選択してから「回答する」を押してください
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -513,16 +534,16 @@ export default function Home() {
                     </div>
                     {showAnswer ? (
                       <div className="mt-4 space-y-4">
-                        {choice.length > 0 && (
+                        {submittedChoice.length > 0 && currentEntry && (
                           <div
-                            className={`rounded-xl border px-4 py-3 text-sm font-semibold ${evaluate(currentEntry, choice) ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}
+                            className={`rounded-xl border px-4 py-3 text-sm font-semibold ${evaluate(currentEntry, submittedChoice) ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}
                           >
-                            {evaluate(currentEntry, choice)
+                            {evaluate(currentEntry, submittedChoice)
                               ? "正解です"
                               : `不正解です。正解は ${currentEntry.answerTokens.join(" / ") || currentEntry.answer}`}
                           </div>
                         )}
-                        {choice.length === 0 && (
+                        {submittedChoice.length === 0 && (
                           <div className="rounded-xl border border-dashed border-indigo-200 bg-indigo-50/60 px-4 py-3 text-sm text-indigo-700">
                             左側で回答を選ぶとここに結果と解説が表示されます。
                           </div>
