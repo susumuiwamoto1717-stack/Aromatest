@@ -15,7 +15,7 @@ export default function Home() {
   const [showAnswer, setShowAnswer] = useState(false);
   const [choice, setChoice] = useState<string[]>([]);
   const [onlyIncorrect, setOnlyIncorrect] = useState(false);
-  const [email, setEmail] = useState("");
+  const [userKey, setUserKey] = useState("");
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
 
   const chapters = useMemo(() => {
@@ -206,32 +206,45 @@ export default function Home() {
   // ローカル保存（メール風のキーで localStorage に保存）
   const STORAGE_KEY = "aroma-trainer-progress";
 
-  useEffect(() => {
-    if (!email) return;
+  const loadProgress = () => {
+    if (!userKey) {
+      setSavedNotice("名前/メールを入力してください");
+      return;
+    }
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
+      if (!raw) {
+        setSavedNotice("保存データが見つかりません");
+        return;
+      }
       const all = JSON.parse(raw) as Record<string, unknown>;
-      const data = all[email] as {
+      const data = all[userKey] as {
         entries?: SpreadEntry[];
         currentIndex?: number;
         history?: { id: string; isCorrect: boolean; selected: string[] }[];
         selectedChapter?: string;
       };
-      if (data?.entries?.length) setEntries(data.entries);
-      if (typeof data?.currentIndex === "number")
+      if (!data) {
+        setSavedNotice("保存データが見つかりません");
+        return;
+      }
+      if (data.entries?.length) setEntries(data.entries);
+      if (typeof data.currentIndex === "number")
         setCurrentIndex(data.currentIndex);
-      if (data?.history) setHistory(data.history);
-      if (data?.selectedChapter) setSelectedChapter(data.selectedChapter);
+      if (data.history) setHistory(data.history);
+      if (data.selectedChapter) setSelectedChapter(data.selectedChapter);
+      setShowAnswer(false);
+      setChoice([]);
       setSavedNotice("保存データを読み込みました");
     } catch (e) {
       console.error(e);
+      setSavedNotice("読み込みに失敗しました");
     }
-  }, [email]);
+  };
 
   const saveProgress = () => {
-    if (!email) {
-      setSavedNotice("メール（任意）を入れてください");
+    if (!userKey) {
+      setSavedNotice("名前/メールを入力してください");
       return;
     }
     const payload = {
@@ -243,7 +256,7 @@ export default function Home() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       const all = raw ? JSON.parse(raw) : {};
-      all[email] = payload;
+      all[userKey] = payload;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
       setSavedNotice("保存しました（この端末のみ）");
     } catch {
@@ -285,9 +298,9 @@ export default function Home() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="メール（保存キーとして使用）"
+                value={userKey}
+                onChange={(e) => setUserKey(e.target.value)}
+                placeholder="名前/メール（保存キー）"
                 className="w-56 rounded-full border border-indigo-200 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
               />
               <button
@@ -296,6 +309,13 @@ export default function Home() {
                 className="rounded-full border border-indigo-100 bg-white px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
               >
                 進捗を保存
+              </button>
+              <button
+                type="button"
+                onClick={loadProgress}
+                className="rounded-full border border-indigo-100 bg-white px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+              >
+                保存を読み込む
               </button>
             </div>
           </div>
