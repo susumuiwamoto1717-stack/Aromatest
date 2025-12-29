@@ -46,18 +46,51 @@ export default function Home() {
   }, [entries, incorrectIds, onlyIncorrect, selectedChapter]);
 
   const currentEntry = filteredEntries[currentIndex];
-  const questionType = useMemo(() => {
-    const ans = currentEntry?.answer ?? "";
-    if (/[〇○×✕❌⭕]/.test(ans)) return "ox";
-    if (ans.split(/[,\s]/).filter(Boolean).length > 1) return "multi";
+
+  const deriveQuestionType = (entry?: SpreadEntry) => {
+    if (!entry) return "choice";
+    const tokens = entry.answerTokens;
+    const oxSet = new Set(["〇", "○", "✕", "×", "❌", "⭕"]);
+    const allOx = tokens.length > 0 && tokens.every((t) => oxSet.has(t));
+    if (allOx) return "ox";
+    if (tokens.length > 1) return "multi";
+    if (tokens.length === 1 && /^\d+$/.test(tokens[0])) return "choice";
     return "choice";
+  };
+
+  const questionType = useMemo(
+    () => deriveQuestionType(currentEntry),
+    [currentEntry],
+  );
+
+  const numericOptionsFromBody = useMemo(() => {
+    if (!currentEntry) return [] as string[];
+    return currentEntry.questionBody
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => /^\d+/.test(line))
+      .map((line) => line.match(/^(\d+)/)?.[1] || "")
+      .filter(Boolean);
   }, [currentEntry]);
 
   const options = useMemo(() => {
+    if (!currentEntry) return ["1", "2", "3", "4"];
     if (questionType === "ox") return ["〇", "✕"];
-    // デフォルト4択（数字）
+    if (
+      currentEntry.answerTokens.length > 0 &&
+      currentEntry.answerTokens.every((t) => /^\d+$/.test(t))
+    ) {
+      if (numericOptionsFromBody.length > 0) {
+        return Array.from(new Set(numericOptionsFromBody));
+      }
+      const max = Math.max(
+        4,
+        ...currentEntry.answerTokens.map((t) => parseInt(t, 10)),
+      );
+      return Array.from({ length: max }, (_, i) => String(i + 1));
+    }
     return ["1", "2", "3", "4"];
-  }, [questionType]);
+  }, [currentEntry, numericOptionsFromBody, questionType]);
   const progress = useMemo(() => {
     if (!filteredEntries.length) return 0;
     return Math.round(((currentIndex + 1) / filteredEntries.length) * 100);

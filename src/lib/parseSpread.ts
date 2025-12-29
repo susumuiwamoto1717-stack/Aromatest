@@ -2,6 +2,7 @@ export type SpreadEntry = {
   id: string;
   statement: string;
   answer: string;
+  answerTokens: string[];
   rawLeft: string;
   questionBody: string;
   explanation: string;
@@ -36,7 +37,7 @@ function extractStatement(left: string) {
 }
 
 function extractAnswer(left: string) {
-  const match = left.match(/答え：\s*([0-9〇○×✕❌⭕、,\s]+)/);
+  const match = left.match(/答え[:：]\s*([0-9〇○×✕❌⭕、,\s]+)/);
   return match ? match[1].trim() : "";
 }
 
@@ -77,17 +78,60 @@ export function parseSpreadMarkdown(markdown: string): SpreadEntry[] {
       [...chapterMatches]
         .filter((c) => c.index < blockIndex)
         .pop()?.title ?? "未分類";
+    const answerTokens = answer
+      .split(/[,\s、]+/)
+      .map((t) => t.trim())
+      .filter(Boolean);
 
-    entries.push({
-      id: id.trim(),
-      statement,
-      answer,
-      rawLeft,
-      questionBody,
-      explanation,
-      chapter,
-      source: sourceMatch ? cleanMarkdown(sourceMatch[1]) : undefined,
-    });
+    // some blocks include multiple Q/解説 in one RIGHT section (e.g., Q1...Q2...)
+    const sections = explanation.match(/^Q\d+/m)
+      ? explanation
+          .split(/^Q\d+/m)
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : null;
+
+    if (sections && sections.length > 0) {
+      sections.forEach((sec, idx) => {
+        const secAnswerMatch = sec.match(/解答[:：]\s*([0-9〇○×✕❌⭕、,\s]+)/);
+        const secAnswer = secAnswerMatch ? secAnswerMatch[1].trim() : answer;
+        const secTokens = secAnswer
+          .split(/[,\s、]+/)
+          .map((t) => t.trim())
+          .filter(Boolean);
+        const secQuestion =
+          sec
+            .split("\n")
+            .find((line) => line.trim() && !line.includes("解答"))
+            ?.trim() || statement;
+        const secExplanation =
+          sec.split(/解説[:：]/)[1]?.trim() || sec.trim();
+
+        entries.push({
+          id: `${id.trim()}-Q${idx + 1}`,
+          statement: secQuestion,
+          answer: secAnswer,
+          answerTokens: secTokens,
+          rawLeft,
+          questionBody: secQuestion,
+          explanation: secExplanation,
+          chapter,
+          source: sourceMatch ? cleanMarkdown(sourceMatch[1]) : undefined,
+        });
+      });
+    } else {
+      entries.push({
+        id: id.trim(),
+        statement,
+        answer,
+        answerTokens,
+        rawLeft,
+        questionBody,
+        explanation,
+        chapter,
+        source: sourceMatch ? cleanMarkdown(sourceMatch[1]) : undefined,
+      });
+    }
   }
 
   return entries;
