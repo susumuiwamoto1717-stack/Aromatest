@@ -113,15 +113,58 @@ export function parseSpreadMarkdown(markdown: string): SpreadEntry[] {
       .map((t) => t.trim())
       .filter(Boolean);
 
-    // some blocks include multiple Q/解説 in one RIGHT section (e.g., Q1...Q2...)
-    const sections = explanation.match(/^Q\d+/m)
-      ? explanation
-          .split(/^Q\d+/m)
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : null;
+    // Check for **問題 N** format (multiple questions in one block)
+    const multiQuestionPattern = /\*\*問題\s*(\d+)\*\*/g;
+    const leftHasMultiQuestions = rawLeft.match(multiQuestionPattern);
 
-    if (sections && sections.length > 0) {
+    if (leftHasMultiQuestions && leftHasMultiQuestions.length > 1) {
+      // Split LEFT by **問題 N** pattern
+      const leftParts = rawLeft.split(/\*\*問題\s*\d+\*\*/).filter(Boolean);
+      const rightClean = cleanMarkdown(rawRight);
+
+      leftHasMultiQuestions.forEach((_, idx) => {
+        const qNum = idx + 1;
+        const qLeft = leftParts[idx] || "";
+
+        // Extract question text and options from LEFT
+        const qLines = qLeft.split("\n").map(l => l.trim()).filter(Boolean);
+        const qStatement = qLines[0] || "";
+        const qOptions = qLines.slice(1).join("\n");
+
+        // Find answer in RIGHT section for this question
+        const answerPattern = new RegExp(`問題\\s*${qNum}[\\s\\S]*?【解答】\\s*([0-9０-９〇○×✕❌⭕.．]+)`);
+        const ansMatch = rightClean.match(answerPattern);
+        const qAnswer = ansMatch ? toHalfWidth(ansMatch[1].replace(/[.．]/g, "").trim()) : "";
+        const qTokens = toHalfWidth(qAnswer)
+          .split(/[,\s、]+/)
+          .map((t) => t.trim())
+          .filter(Boolean);
+
+        // Extract explanation
+        const explPattern = new RegExp(`問題\\s*${qNum}[\\s\\S]*?【解説】([\\s\\S]*?)(?=問題\\s*\\d+|$)`);
+        const explMatch = rightClean.match(explPattern);
+        const qExplanation = explMatch ? explMatch[1].trim() : "";
+
+        entries.push({
+          id: `${id.trim()}-Q${qNum}`,
+          statement: qStatement,
+          answer: qAnswer,
+          answerTokens: qTokens,
+          rawLeft: qLeft,
+          questionBody: qOptions || qStatement,
+          explanation: qExplanation,
+          chapter,
+          source: sourceMatch ? cleanMarkdown(sourceMatch[1]) : undefined,
+        });
+      });
+    }
+    // some blocks include multiple Q/解説 in one RIGHT section (e.g., Q1...Q2...)
+    else if (explanation.match(/^Q\d+/m)) {
+      const sections = explanation
+        .split(/^Q\d+/m)
+        .map((s) => s.trim())
+        .filter(Boolean);
+
       sections.forEach((sec, idx) => {
         // 複数の形式に対応
         let secAnswerMatch = sec.match(/解答[:：]?\s*([0-9０-９〇○×✕❌⭕、,\s]+)/);

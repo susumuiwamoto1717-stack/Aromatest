@@ -114,6 +114,10 @@ export default function Home() {
       };
     }
 
+    // 全角数字を半角に変換する関数
+    const toHalfWidthNum = (s: string) =>
+      s.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+
     const lines = currentEntry.questionBody
       .split("\n")
       .map((line) => line.trim())
@@ -121,13 +125,18 @@ export default function Home() {
 
     const numbered = lines
       .map((line) => {
-        const match = line.match(/^(\d+)[\.\s、)]\s*(.+)$/);
+        // 全角数字を半角に変換してからマッチ
+        const normalized = toHalfWidthNum(line);
+        const match = normalized.match(/^(\d+)[\.\s、)．]\s*(.+)$/);
         if (!match) return null;
         return { id: match[1], label: match[2].trim() };
       })
       .filter(Boolean) as { id: string; label: string }[];
 
-    const context = lines.filter((line) => !/^\d+[\.\s、)]/.test(line));
+    const context = lines.filter((line) => {
+      const normalized = toHalfWidthNum(line);
+      return !/^\d+[\.\s、)．]/.test(normalized);
+    });
 
     const filteredContext = context.filter(
       (line) => !currentEntry.statement.includes(line) && line !== "選択肢"
