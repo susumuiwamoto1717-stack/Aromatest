@@ -44,21 +44,25 @@ function extractStatement(left: string) {
 }
 
 function extractAnswer(left: string, right: string) {
+  // マークダウンの**を削除してから検索
+  const cleanLeft = left.replace(/\*\*/g, "");
+  const cleanRight = right.replace(/\*\*/g, "");
+
   // 左ページから「答え：」形式を探す
-  let match = left.match(/答え[:：]\s*([0-9０-９〇○×✕❌⭕、,\s]+)/);
+  let match = cleanLeft.match(/答え[:：]\s*([0-9０-９〇○×✕❌⭕、,\s]+)/);
   if (match) {
     return toHalfWidth(match[1].trim());
   }
 
   // 右ページから「正解：」「正解は」「解答」形式を探す
   // 正解：4 or 正解 1、2、4 or 正解は 1, 3, 4
-  match = right.match(/正解[:：は]?\s*([0-9０-９〇○×✕❌⭕、,\s]+)/);
+  match = cleanRight.match(/正解[:：は]?\s*([0-9０-９〇○×✕❌⭕、,\s]+)/);
   if (match) {
     return toHalfWidth(match[1].trim());
   }
 
   // 解答 1 or 解答：〇
-  match = right.match(/解答[:：]?\s*([0-9０-９〇○×✕❌⭕、,\s]+)/);
+  match = cleanRight.match(/解答[:：]?\s*([0-9０-９〇○×✕❌⭕、,\s]+)/);
   if (match) {
     return toHalfWidth(match[1].trim());
   }
