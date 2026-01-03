@@ -228,29 +228,37 @@ export default function TeacherDashboard() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-left text-gray-600">
-                        <th className="pb-2">問題ID</th>
+                        <th className="pb-2">問題番号</th>
                         <th className="pb-2">章</th>
                         <th className="pb-2 text-center">間違えた回数</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-red-100">
-                      {selectedUserData.wrongQuestions.map((wq) => (
-                        <tr key={wq.questionId}>
-                          <td className="py-2 font-mono text-gray-800">{wq.questionId}</td>
-                          <td className="py-2 text-gray-600">{wq.chapter}</td>
-                          <td className="py-2 text-center">
-                            <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                              wq.wrongCount >= 3
-                                ? "bg-red-200 text-red-800"
-                                : wq.wrongCount >= 2
-                                ? "bg-orange-200 text-orange-800"
-                                : "bg-yellow-200 text-yellow-800"
-                            }`}>
-                              {wq.wrongCount}回
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {selectedUserData.wrongQuestions.map((wq) => {
+                        // 問題IDからQ番号を抽出して表示 (例: F11-Q001 → Q001)
+                        const qMatch = wq.questionId.match(/Q\d+/);
+                        const questionNum = qMatch ? qMatch[0] : wq.questionId;
+                        return (
+                          <tr key={wq.questionId}>
+                            <td className="py-2">
+                              <span className="font-bold text-red-700 text-base">{questionNum}</span>
+                              <span className="text-gray-400 text-xs ml-1">({wq.questionId})</span>
+                            </td>
+                            <td className="py-2 text-gray-600">{wq.chapter}</td>
+                            <td className="py-2 text-center">
+                              <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                                wq.wrongCount >= 3
+                                  ? "bg-red-200 text-red-800"
+                                  : wq.wrongCount >= 2
+                                  ? "bg-orange-200 text-orange-800"
+                                  : "bg-yellow-200 text-yellow-800"
+                              }`}>
+                                {wq.wrongCount}回
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
