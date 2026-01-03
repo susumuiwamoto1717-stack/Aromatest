@@ -3,7 +3,16 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
-type ChapterStats = Record<string, { correct: number; total: number }>;
+type QuestionResult = {
+  questionId: string;
+  isCorrect: boolean;
+};
+
+type ChapterStats = Record<string, {
+  correct: number;
+  total: number;
+  questions: QuestionResult[];
+}>;
 
 type WrongQuestion = {
   questionId: string;
@@ -31,6 +40,7 @@ export default function TeacherDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [expandedChapter, setExpandedChapter] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -176,100 +186,91 @@ export default function TeacherDashboard() {
               登録日: {formatDate(selectedUserData.createdAt)}
             </div>
 
-            <h3 className="text-md font-medium text-gray-700 mb-2">章別成績</h3>
+            <h3 className="text-md font-medium text-gray-700 mb-2">
+              章別成績 <span className="text-xs text-gray-400">（クリックで問題一覧を表示）</span>
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {Object.entries(selectedUserData.chapterStats).map(([chapter, stats]) => {
                 const chapterAccuracy = Math.round((stats.correct / stats.total) * 100);
+                const isExpanded = expandedChapter === chapter;
                 return (
-                  <div key={chapter} className="bg-gray-50 rounded-lg p-3">
-                    <div className="text-sm font-medium text-gray-700 truncate" title={chapter}>
-                      {chapter}
-                    </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-sm text-gray-500">
-                        {stats.correct}/{stats.total}問
-                      </span>
-                      <span
-                        className={`text-sm font-medium ${
-                          chapterAccuracy >= 80
-                            ? "text-green-600"
-                            : chapterAccuracy >= 60
-                            ? "text-yellow-600"
-                            : "text-red-600"
-                        }`}
-                      >
-                        {chapterAccuracy}%
-                      </span>
-                    </div>
-                    <div className="mt-1 bg-gray-200 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full ${
-                          chapterAccuracy >= 80
-                            ? "bg-green-500"
-                            : chapterAccuracy >= 60
-                            ? "bg-yellow-500"
-                            : "bg-red-500"
-                        }`}
-                        style={{ width: `${chapterAccuracy}%` }}
-                      />
-                    </div>
+                  <div key={chapter}>
+                    <button
+                      onClick={() => setExpandedChapter(isExpanded ? null : chapter)}
+                      className={`w-full text-left rounded-lg p-3 transition ${
+                        isExpanded ? "bg-indigo-100 ring-2 ring-indigo-400" : "bg-gray-50 hover:bg-gray-100"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-medium text-gray-700 truncate" title={chapter}>
+                          {chapter}
+                        </div>
+                        <span className="text-xs text-gray-400">{isExpanded ? "▲" : "▼"}</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-sm text-gray-500">
+                          {stats.correct}/{stats.total}問
+                        </span>
+                        <span
+                          className={`text-sm font-medium ${
+                            chapterAccuracy >= 80
+                              ? "text-green-600"
+                              : chapterAccuracy >= 60
+                              ? "text-yellow-600"
+                              : "text-red-600"
+                          }`}
+                        >
+                          {chapterAccuracy}%
+                        </span>
+                      </div>
+                      <div className="mt-1 bg-gray-200 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full ${
+                            chapterAccuracy >= 80
+                              ? "bg-green-500"
+                              : chapterAccuracy >= 60
+                              ? "bg-yellow-500"
+                              : "bg-red-500"
+                          }`}
+                          style={{ width: `${chapterAccuracy}%` }}
+                        />
+                      </div>
+                    </button>
+                    {/* Question list when expanded */}
+                    {isExpanded && stats.questions && (
+                      <div className="mt-2 bg-white border border-indigo-200 rounded-lg p-3">
+                        <div className="text-xs font-medium text-gray-600 mb-2">問題一覧</div>
+                        <div className="flex flex-wrap gap-1">
+                          {stats.questions.map((q, idx) => {
+                            const qMatch = q.questionId.match(/Q(\d+)/);
+                            const qNum = qMatch ? parseInt(qMatch[1], 10) : idx + 1;
+                            return (
+                              <div
+                                key={q.questionId}
+                                title={q.questionId}
+                                className={`w-8 h-8 flex items-center justify-center rounded text-xs font-bold ${
+                                  q.isCorrect
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-red-100 text-red-700"
+                                }`}
+                              >
+                                {q.isCorrect ? "○" : "×"}
+                                <span className="text-[10px] ml-0.5">{qNum}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-2 text-xs text-gray-500">
+                          <span className="inline-block w-4 h-4 bg-blue-100 rounded mr-1 align-middle" /> 正解
+                          <span className="inline-block w-4 h-4 bg-red-100 rounded mx-1 ml-3 align-middle" /> 不正解
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
 
-            {/* Wrong Questions List */}
-            {selectedUserData.wrongQuestions && selectedUserData.wrongQuestions.length > 0 && (
-              <>
-                <h3 className="text-md font-medium text-gray-700 mt-6 mb-2">
-                  間違えた問題一覧（{selectedUserData.wrongQuestions.length}問）
-                </h3>
-                <div className="bg-red-50 rounded-lg p-4">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-gray-600">
-                        <th className="pb-2">問題番号</th>
-                        <th className="pb-2">章</th>
-                        <th className="pb-2 text-center">間違えた回数</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-red-100">
-                      {selectedUserData.wrongQuestions.map((wq) => {
-                        // 問題IDからQ番号を抽出して表示 (例: F11-Q001 → Q001)
-                        const qMatch = wq.questionId.match(/Q\d+/);
-                        const questionNum = qMatch ? qMatch[0] : wq.questionId;
-                        return (
-                          <tr key={wq.questionId}>
-                            <td className="py-2">
-                              <span className="font-bold text-red-700 text-base">{questionNum}</span>
-                              <span className="text-gray-400 text-xs ml-1">({wq.questionId})</span>
-                            </td>
-                            <td className="py-2 text-gray-600">{wq.chapter}</td>
-                            <td className="py-2 text-center">
-                              <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                                wq.wrongCount >= 3
-                                  ? "bg-red-200 text-red-800"
-                                  : wq.wrongCount >= 2
-                                  ? "bg-orange-200 text-orange-800"
-                                  : "bg-yellow-200 text-yellow-800"
-                              }`}>
-                                {wq.wrongCount}回
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-
-            {selectedUserData.wrongQuestions && selectedUserData.wrongQuestions.length === 0 && (
-              <div className="mt-6 text-center text-green-600 bg-green-50 rounded-lg p-4">
-                間違えた問題はありません
-              </div>
-            )}
           </div>
         )}
 

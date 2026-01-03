@@ -55,15 +55,28 @@ export async function GET(req: NextRequest) {
           )
         : null;
 
-      // Count by chapter
-      const chapterStats: Record<string, { correct: number; total: number }> = {};
+      // Count by chapter with question details
+      const chapterStats: Record<string, {
+        correct: number;
+        total: number;
+        questions: { questionId: string; isCorrect: boolean }[];
+      }> = {};
       userAnswers.forEach((a) => {
         const ch = a.chapter || "その他";
         if (!chapterStats[ch]) {
-          chapterStats[ch] = { correct: 0, total: 0 };
+          chapterStats[ch] = { correct: 0, total: 0, questions: [] };
         }
         chapterStats[ch].total++;
         if (a.is_correct) chapterStats[ch].correct++;
+        chapterStats[ch].questions.push({
+          questionId: a.question_id,
+          isCorrect: a.is_correct,
+        });
+      });
+
+      // Sort questions by questionId within each chapter
+      Object.values(chapterStats).forEach((ch) => {
+        ch.questions.sort((a, b) => a.questionId.localeCompare(b.questionId));
       });
 
       // Count wrong answers per question
