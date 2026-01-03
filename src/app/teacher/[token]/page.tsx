@@ -5,6 +5,12 @@ import { useParams } from "next/navigation";
 
 type ChapterStats = Record<string, { correct: number; total: number }>;
 
+type WrongQuestion = {
+  questionId: string;
+  wrongCount: number;
+  chapter: string;
+};
+
 type UserStat = {
   userKey: string;
   createdAt: string;
@@ -14,6 +20,7 @@ type UserStat = {
   studyDaysCount: number;
   latestActivity: string;
   chapterStats: ChapterStats;
+  wrongQuestions: WrongQuestion[];
 };
 
 export default function TeacherDashboard() {
@@ -210,6 +217,51 @@ export default function TeacherDashboard() {
                 );
               })}
             </div>
+
+            {/* Wrong Questions List */}
+            {selectedUserData.wrongQuestions && selectedUserData.wrongQuestions.length > 0 && (
+              <>
+                <h3 className="text-md font-medium text-gray-700 mt-6 mb-2">
+                  間違えた問題一覧（{selectedUserData.wrongQuestions.length}問）
+                </h3>
+                <div className="bg-red-50 rounded-lg p-4">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-gray-600">
+                        <th className="pb-2">問題ID</th>
+                        <th className="pb-2">章</th>
+                        <th className="pb-2 text-center">間違えた回数</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-red-100">
+                      {selectedUserData.wrongQuestions.map((wq) => (
+                        <tr key={wq.questionId}>
+                          <td className="py-2 font-mono text-gray-800">{wq.questionId}</td>
+                          <td className="py-2 text-gray-600">{wq.chapter}</td>
+                          <td className="py-2 text-center">
+                            <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                              wq.wrongCount >= 3
+                                ? "bg-red-200 text-red-800"
+                                : wq.wrongCount >= 2
+                                ? "bg-orange-200 text-orange-800"
+                                : "bg-yellow-200 text-yellow-800"
+                            }`}>
+                              {wq.wrongCount}回
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {selectedUserData.wrongQuestions && selectedUserData.wrongQuestions.length === 0 && (
+              <div className="mt-6 text-center text-green-600 bg-green-50 rounded-lg p-4">
+                間違えた問題はありません
+              </div>
+            )}
           </div>
         )}
 

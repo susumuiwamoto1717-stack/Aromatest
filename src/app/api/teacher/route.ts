@@ -66,6 +66,26 @@ export async function GET(req: NextRequest) {
         if (a.is_correct) chapterStats[ch].correct++;
       });
 
+      // Count wrong answers per question
+      const wrongAnswersByQuestion: Record<string, { count: number; chapter: string }> = {};
+      userAnswers.forEach((a) => {
+        if (!a.is_correct) {
+          if (!wrongAnswersByQuestion[a.question_id]) {
+            wrongAnswersByQuestion[a.question_id] = { count: 0, chapter: a.chapter || "その他" };
+          }
+          wrongAnswersByQuestion[a.question_id].count++;
+        }
+      });
+
+      // Convert to sorted array (most wrong first)
+      const wrongQuestions = Object.entries(wrongAnswersByQuestion)
+        .map(([questionId, data]) => ({
+          questionId,
+          wrongCount: data.count,
+          chapter: data.chapter,
+        }))
+        .sort((a, b) => b.wrongCount - a.wrongCount);
+
       return {
         userKey: user.user_key,
         createdAt: user.created_at,
@@ -75,6 +95,7 @@ export async function GET(req: NextRequest) {
         studyDaysCount: userStudyDays.length,
         latestActivity: latestAnswer?.answered_at || user.created_at,
         chapterStats,
+        wrongQuestions,
       };
     });
 
