@@ -114,21 +114,27 @@ export function parseSpreadMarkdown(markdown: string): SpreadEntry[] {
       .filter(Boolean);
 
     // Check for **問題 N** format (multiple questions in one block)
+    // Use original left text (before cleanMarkdown) to detect pattern
+    const originalLeft = leftMatch?.[1] ?? "";
     const multiQuestionPattern = /\*\*問題\s*(\d+)\*\*/g;
-    const leftHasMultiQuestions = rawLeft.match(multiQuestionPattern);
+    const leftHasMultiQuestions = originalLeft.match(multiQuestionPattern);
 
     if (leftHasMultiQuestions && leftHasMultiQuestions.length > 1) {
       // Split LEFT by **問題 N** pattern
-      const leftParts = rawLeft.split(/\*\*問題\s*\d+\*\*/).filter(Boolean);
+      // First part before **問題 1** is introduction, skip it
+      const leftParts = originalLeft.split(/\*\*問題\s*\d+\*\*/).slice(1);
       const rightClean = cleanMarkdown(rawRight);
 
       leftHasMultiQuestions.forEach((_, idx) => {
         const qNum = idx + 1;
-        const qLeft = leftParts[idx] || "";
+        const qLeftRaw = leftParts[idx] || "";
+        const qLeft = cleanMarkdown(qLeftRaw);
 
         // Extract question text and options from LEFT
         const qLines = qLeft.split("\n").map(l => l.trim()).filter(Boolean);
+        // First line is the question statement
         const qStatement = qLines[0] || "";
+        // Remaining lines are options (numbered list)
         const qOptions = qLines.slice(1).join("\n");
 
         // Find answer in RIGHT section for this question
