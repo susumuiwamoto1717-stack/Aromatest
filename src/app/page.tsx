@@ -122,9 +122,16 @@ export default function Home() {
       return !optionPattern.test(normalized);
     });
 
-    const filteredContext = context.filter(
-      (line) => !currentEntry.statement.includes(line) && line !== "選択肢"
-    );
+    // 不要な行を除外（問題番号、選択肢ラベルなど）
+    const filteredContext = context.filter((line) => {
+      // statementと同じ行を除外
+      if (currentEntry.statement.includes(line)) return false;
+      // 「問題」「第N問」で始まる行を除外
+      if (/^(問題|第\d+問)/.test(line)) return false;
+      // 「選択肢」を含む行を除外
+      if (line === "選択肢" || line.includes("選択肢")) return false;
+      return true;
+    });
 
     // ○×問題の場合
     if (questionType === "ox") {
