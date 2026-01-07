@@ -902,12 +902,13 @@ export default function Home() {
                     <p className="yomogi text-lg font-bold text-indigo-700">
                       問題
                     </p>
-                    <p className="mt-2 text-lg font-semibold leading-relaxed text-gray-900">
-                      {currentEntry.statement}
-                    </p>
-                    {contextLines.length > 0 && (
-                      <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-gray-600">
+                    {contextLines.length > 0 ? (
+                      <p className="mt-2 whitespace-pre-wrap text-base leading-relaxed text-gray-800">
                         {contextLines.join("\n")}
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-base leading-relaxed text-gray-800">
+                        {currentEntry.statement}
                       </p>
                     )}
                     <div className="mt-4 space-y-2">
