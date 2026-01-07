@@ -115,9 +115,11 @@ export default function Home() {
       .filter(Boolean);
 
     // 問題文を抽出（番号付き選択肢以外の行）
+    // 選択肢パターン: "1." "1 " "1、" "1)" "1．" "1," などで始まる行
+    const optionPattern = /^\d+[\.\s、)．,]/;
     const context = lines.filter((line) => {
       const normalized = toHalfWidthNum(line);
-      return !/^\d+[\.\s、)．]/.test(normalized);
+      return !optionPattern.test(normalized);
     });
 
     const filteredContext = context.filter(
@@ -139,7 +141,8 @@ export default function Home() {
       .map((line) => {
         // 全角数字を半角に変換してからマッチ
         const normalized = toHalfWidthNum(line);
-        const match = normalized.match(/^(\d+)[\.\s、)．]\s*(.+)$/);
+        // "1, 角質層..." や "1. 選択肢..." などの形式に対応
+        const match = normalized.match(/^(\d+)[\.\s、)．,]\s*(.+)$/);
         if (!match) return null;
         return { id: match[1], label: match[2].trim() };
       })
