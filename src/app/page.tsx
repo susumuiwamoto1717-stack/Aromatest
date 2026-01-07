@@ -104,15 +104,6 @@ export default function Home() {
   const { options, contextLines } = useMemo(() => {
     if (!currentEntry)
       return { options: [] as { id: string; label: string }[], contextLines: [] as string[] };
-    if (questionType === "ox") {
-      return {
-        options: [
-          { id: "〇", label: "〇" },
-          { id: "✕", label: "✕" },
-        ],
-        contextLines: [],
-      };
-    }
 
     // 全角数字を半角に変換する関数
     const toHalfWidthNum = (s: string) =>
@@ -123,6 +114,27 @@ export default function Home() {
       .map((line) => line.trim())
       .filter(Boolean);
 
+    // 問題文を抽出（番号付き選択肢以外の行）
+    const context = lines.filter((line) => {
+      const normalized = toHalfWidthNum(line);
+      return !/^\d+[\.\s、)．]/.test(normalized);
+    });
+
+    const filteredContext = context.filter(
+      (line) => !currentEntry.statement.includes(line) && line !== "選択肢"
+    );
+
+    // ○×問題の場合
+    if (questionType === "ox") {
+      return {
+        options: [
+          { id: "〇", label: "〇" },
+          { id: "✕", label: "✕" },
+        ],
+        contextLines: filteredContext,
+      };
+    }
+
     const numbered = lines
       .map((line) => {
         // 全角数字を半角に変換してからマッチ
@@ -132,15 +144,6 @@ export default function Home() {
         return { id: match[1], label: match[2].trim() };
       })
       .filter(Boolean) as { id: string; label: string }[];
-
-    const context = lines.filter((line) => {
-      const normalized = toHalfWidthNum(line);
-      return !/^\d+[\.\s、)．]/.test(normalized);
-    });
-
-    const filteredContext = context.filter(
-      (line) => !currentEntry.statement.includes(line) && line !== "選択肢"
-    );
 
     if (numbered.length > 0) return { options: numbered, contextLines: filteredContext };
 
